@@ -1,1 +1,318 @@
+import tkinter as tk
+from time import sleep
+from time import time
 
+# Quelques paramètres globaux utiles à l'initialisation
+GRID_WIDTH = 150    # Largeur de la grille de jeu
+GRID_HEIGHT = 90  # Hauteur de la grille de jeu
+GRID_SIZE = 10   # Taille en pixel d'un bloc de la grille de jeu
+
+DT = 0.05           # Temps de pause entre deux frames. 
+                    # Attention, cela ne prend pas en compte le temps de calcul par ailleurs, 
+                    # le temps de pause effectif peut être plus long
+
+BG_COLOR = "#000000"    # Noir
+P1_COLOR = "#FF0000"    # Rouge
+P2_COLOR = "#0000FF"    # Bleu
+P1_WALL = "#FFCC00" 
+P2_WALL = "#0000FF" 
+vies = 0
+Rounds= 0
+P1_win = 0
+P2_win = 0
+
+
+#fenetre = tk.Tk()       # On initialise une fenêtre Tkinter
+
+class Player:
+    """"
+    Classe pour définir chaque joueur : sa position, son déplacement, 
+    son état (mort/vivant), sa couleur, etc...
+    """
+    def __init__(self, x, y, dx, dy, player_id, color, wall_color,vie):
+        self.x = x
+        self.y = y
+        self.dx = dx
+        self.dy = dy
+        self.id = player_id
+        self.color = color
+        self.wall_color = wall_color
+        self.status = True  # True si joueur vivant, False si joueur mort
+        self.vie = vies
+        
+        
+    
+    def move(self, field):
+        """
+        - Marque la position actuelle du joueur avec son mur dans la grille
+        - Déplace le joueur en fonction de sa vitesse actuelle
+        - Vérifie si le joueur sort du terrain ou percute un mur
+        """
+        field[self.y][self.x] = self.id
+        
+        self.x += self.dx
+        self.y += self.dy
+        
+        if not (0 <= self.x < len(field[0])):
+            self.status = False
+    
+                
+        elif not (0 <= self.y < len(field)):
+            self.status = False
+                
+        elif field[self.y][self.x] != 0:
+            self.vie -= 1
+            
+            if self.vie ==0:
+                self.status = False
+            
+            
+
+    
+    def display(self, canvas, wall=False):
+        """
+        Affiche un rectangle coloré à la position du joueur :
+            - De la couleur du joueur si wall=False
+            - De la couleur de son mur si wall=True
+        """
+        if wall:
+            c = self.wall_color
+        else:
+            c = self.color
+            
+        canvas.create_rectangle(self.x*GRID_SIZE, self.y*GRID_SIZE, 
+                                (self.x+1)*GRID_SIZE, (self.y+1)*GRID_SIZE,
+                                fill=c, outline=c)
+        
+    # Fonctions pour changer la vitesse du joueur vers la direction voulue
+    # Prend un "event" tkinter en argument pour être bind avec les touches du clavier
+    def up(self, event):
+        if self.dy != 1:
+            self.dx, self.dy = 0, -1
+    
+    def down(self, event):
+        if self.dy != -1:
+            self.dx, self.dy = 0, 1
+        
+    def left(self, event):
+        if self.dx != 1:
+            self.dx, self.dy = -1, 0
+        
+    def right(self, event):
+        if self.dx != -1:
+            self.dx, self.dy = 1, 0
+
+    
+
+class Grid:
+    """
+    Classe qui contient la grille de jeu et ses paramètres.
+    """
+    
+    def __init__(self):
+        
+        self.width = GRID_WIDTH
+        self.height = GRID_HEIGHT
+        self.px_width = GRID_WIDTH * GRID_SIZE
+        self.px_height = GRID_HEIGHT * GRID_SIZE
+        self.bg = BG_COLOR
+        self.field = [ [0] * self.width for i in range(self.height)]
+            
+    def display_field(self, canvas):
+        """
+        Affiche la grille vierge au début du jeu
+        """
+        canvas.delete(tk.ALL)
+
+        canvas.create_rectangle(0, 0, self.px_width, self.px_height, fill=self.bg)
+
+         
+
+class Game:
+    """
+    Classe qui contient le coeur du jeu
+    """   
+    
+    def __init__(self):
+        """
+        Initialisation de la grille et des joueurs
+        """
+        self.grid = Grid()
+        self.P1 = Player(self.grid.width//5, self.grid.height//2-1, 
+                         1, 0, 1, P1_COLOR, P1_WALL,3)
+        self.P2 = Player(4*self.grid.width//5, self.grid.height//2+1, 
+                         -1, 0, 2, P2_COLOR, P2_WALL,3)
+        
+        self.status = True  # Indique l'état du jeu. 
+                            # True si les joueurs sont vivants, False si au moins un est mort
+        
+        # Initialisation d'un canvas Tkinter pour gérer l'affichage
+        self.can = tk.Canvas(fenetre, bg=self.grid.bg, 
+                             height=self.grid.px_height, width=self.grid.px_width)
+        self.can.pack(side=tk.TOP, padx=5, pady=5)
+        Frame1 = tk.Frame(fenetre, borderwidth=2, relief=tk.GROOVE)
+        Frame1.pack(side=tk.BOTTOM, padx=60, pady=10)
+        
+        # Binding des touches de clavier avec les déplacements
+        self.bind()
+        
+        # Affichage du terrain vierge
+        self.grid.display_field(self.can)
+        
+        # Affichage des joueurs à leurs positions de départ
+        self.P1.display(self.can)
+        self.P2.display(self.can)
+    
+    def main(self):
+        """
+        Boucle principale du jeu.
+        Tourne tant que le status est True, càd tant qu'aucun joueur n'est mort
+        """
+        while self.status:
+            # On effectue une étape de jeu
+            self.step()
+            
+            # On prend en compte les commandes des joueurs et on met la fenêtre à jour
+            fenetre.update_idletasks()
+            fenetre.update()
+            
+            # Pause pour éviter que le jeu ne se déroule trop vite
+            sleep(DT)
+        
+        if not self.P1.status:
+            return 2
+        if not self.P2.status:
+            return 1
+        fenetre.update()
+    
+    def step(self):
+        """
+        Effectue une étape du jeu :
+            - Affiche les murs à la position actuelle des joueurs
+            - Déplace les joueurs
+            - Vérifie si l'un d'eux est mort après ce déplacement. Si oui fin du jeu.
+            - Affiche les joueurs à leur nouvelle position
+        """
+        self.P1.display(self.can, wall=True)
+        self.P2.display(self.can, wall=True)
+        
+        self.P1.move(self.grid.field)
+        self.P2.move(self.grid.field)
+        if not (self.P1.status and self.P2.status):
+            self.status = False
+            return
+        
+        self.P1.display(self.can, wall=False)
+        self.P2.display(self.can, wall=False)
+    
+    def bind(self):
+        """
+        Association des commandes avec les déplacement des joueurs.
+        Le joueur 1 joue avec Z-Q-S-D
+        Le joueur 2 joue avec les flèches du clavier
+        """
+        fenetre.bind("<z>",     self.P1.up)       # Z
+        fenetre.bind("<s>",     self.P1.down)     # S
+        fenetre.bind("<q>",     self.P1.left)     # Q
+        fenetre.bind("<d>",     self.P1.right)    # D
+        
+        fenetre.bind("<Up>",    self.P2.up)     # Flèche haut
+        fenetre.bind("<Down>",  self.P2.down)   # Bas
+        fenetre.bind("<Left>",  self.P2.left)   # Gauche
+        fenetre.bind("<Right>", self.P2.right)  # Droite  
+
+
+# Initialisation du jeu
+ws = tk.Tk() #fenêtre du bouton
+ws.title('choix des couleurs du joueur 1') #titre de la fenêtre
+ws.geometry('400x300')
+
+def showSelected(): #attribue la couleur sélectionnée par le joueur à la variable couleur du joueur 1
+    global P1_WALL
+    cname = lb.curselection()
+    for i in cname:
+        op = lb.get(i)
+    if op =="blue":
+        P1_WALL="#ADD8E6"
+    if op == "pink":
+        P1_WALL="#FD6C9E"
+    if op == "green":
+        P1_WALL="#90EE90"
+    if op == "red":
+        P1_WALL="#FF0000"
+    ws.destroy()   #fermeture de la fenêtre
+show = tk.Label(ws, text = "Submit")
+show.pack() 
+lb = tk.Listbox(ws, selectmode = "single") 
+lb.pack(padx = 10, pady = 10, expand = tk.YES, fill = "both") 
+
+x =["red","blue","pink","green"]
+for item in range(len(x)):
+    lb.insert(tk.END, x[item]) 
+    lb.itemconfig(item, bg="#bdc1d6") 
+
+tk.Button(ws, text="Submit", command=showSelected).pack()
+ws.mainloop() 
+
+ws = tk.Tk() 
+ws.title('choix des couleurs du joueur 2') 
+ws.geometry('400x300')
+
+
+def showSelected():  #attribue la couleur sélectionnée par le joueur à la variable couleur du joueur 2
+    global P2_WALL
+    cname = lb.curselection() #index de la couleur sélectionnée dans la liste
+    for i in cname:
+        op = lb.get(i) #récupération de la couleur sélectionnée dans la liste à partir de l'index
+    if op =="blue":
+        P2_WALL="#ADD8E6"  
+    if op == "pink":
+        P2_WALL="#FD6C9E"
+    if op == "green":
+        P2_WALL="#90EE90"
+    if op == "red":
+        P2_WALL="#FF0000"
+    ws.destroy()
+        
+show = tk.Label(ws, text = "Submit") #bouton submit pour choisir la couleur
+show.pack() 
+lb = tk.Listbox(ws, selectmode = "single") #création de la liste 
+lb.pack(padx = 10, pady = 10, expand = tk.YES, fill = "both") #caractéristique de la liste
+
+x =["red","blue","pink","green"] 
+for item in range(len(x)): #on range les items dans la liste 
+    lb.insert(tk.END, x[item]) 
+    lb.itemconfig(item, bg="#bdc1d6") 
+
+tk.Button(ws, text="Submit", command=showSelected).pack() #presser le bouton Submit appelle la fonction showSelected 
+ws.mainloop()
+while not (0 < vies):
+    vies = int(input("Entrez le nombre de vies que vous vous autorisez : "))
+while not (0 < Rounds):
+    Rounds = int(input("Entrez le nombre de rounds que vous voulez effectuer"))
+gagne=Rounds 
+for i in range(0, Rounds):
+    fenetre = tk.Tk()       # On initialise une fenêtre Tkinter
+    TRON = Game()
+
+# Quelques lignes pour faire apparaître la fenêtre au-dessus des autres
+# Attention toutefois, il est possible que la fenêtre ne soit pas "active",
+# càd qu'il faudra cliquer une fois dessus pour que les commandes soient bien prises en compte
+    fenetre.attributes('-topmost', True)
+    fenetre.update()
+    fenetre.attributes('-topmost', False)
+    sleep(1)
+    winner=TRON.main()
+    sleep(2)
+    fenetre.destroy()
+    print("Le gagnant du Round",i+1,"est",winner)
+    if winner==1:
+        P1_win += 1
+    if winner == 2:
+        P2_win += 1
+if P1_win>P2_win:
+    print ("Le joueur 1 a gagné")
+if P2_win>P1_win:
+    print ("Le joueur 2 a gagné")
+if P2_win == P1_win:
+    print ("Les joueurs sont à égalité")
